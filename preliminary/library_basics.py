@@ -105,13 +105,33 @@ class CodingVideo:
         except Exception as exc:
             raise ValueError(f"Failed to save image to {output_path}") from exc
         
+    def save_text_from_frame(self, seconds: int, output_path: Path | str = 'output.txt') -> None:
+        """Extract text from the frame at a given time and save it to a text file.
+
+        Uses pytesseract to perform OCR on the frame and extract any text.
+        Reference:
+        https://pypi.org/project/pytesseract/
+        """
+        import pytesseract
+
+        frame_number = self.get_frame_number_at_time(seconds)
+        frame = self.get_frame_rgb_array(frame_number)
+
+        try:
+            text = pytesseract.image_to_string(frame)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+        except Exception as exc:
+            raise ValueError(f"Failed to extract text or save to {output_path}") from exc
+        
 
 def test():
     """Try out your class here"""
     oop = CodingVideo(VID_PATH)
     print(oop)
     # print(oop.get_frame_rgb_array(42))
-    oop.save_as_image(242)
+    # oop.save_as_image(242)
+    oop.save_text_from_frame(242)
 
 if __name__ == '__main__':
     test()
