@@ -91,11 +91,15 @@ FastAPI will allow us to enable communication with our OCR service from other pr
 4. Run the following curl command (may require git bash on Windows):
 `curl 127.0.0.1:8000/video`
 5. Confirm that a list of videos and URLs is returned by copying the output below:
-> Description
+> {"count":1,"videos":[{"id":"demo","path":"../resources/oop.mp4","_links":{"self":"/video/demo","frame_example":"/video/demo/frame/1.0"}}]}
 6. What are the names of the two processes that just communicated?
->
+> 1) curl — the client process that sent the HTTP request. 2) FastAPI server — the server process that received the request, processed it, and sent back a response.
 6. Modify the simple_api.py so that it works correctly with your implementation and complete any TODO markers
 7. Demonstrate the use of at least two other end points below:
+>curl 127.0.0.1:8000/video/demo/frame/242 --output test.png
+>  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+>                                 Dload  Upload   Total   Spent    Left  Speed
+> 100  576k  100  576k    0     0  4496k      0 --:--:-- --:--:-- --:--:-- 4541k
 >
->
->
+> curl 127.0.0.1:8000/video/demo/frame/242/ocr
+> {"text":">>> user2.first_name = \"Frank\"\n>>> user2.last_name = \"Poole\"\nee\n>>> print(first_name, last_name)\nArthur Clarke\nas\n>>> print(user1.first_name, user1.last_name)\nDave Bowman\nDes\n>>> print(user2.first_name, user2.last_name)\nFrank Poole\nas\n>>> userl.age = 37\n>>> user2.favorite_book = \"2001: A Space Odyssey”\noes\n>>> print(user1.age)\nyA\n>>> print(user2.age)\nTraceback (most recent call last):\nFile \"<stdin>\", line 1, in <module>\nAttributeError: ‘User’ object has no attribute\nPs\n\nEy ei-)\n\f"}

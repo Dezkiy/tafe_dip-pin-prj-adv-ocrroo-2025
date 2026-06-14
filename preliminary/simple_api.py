@@ -19,13 +19,17 @@ app = FastAPI()
 # You can add uploads later (not required for assessment)
 # For now, we will just hardcode are samples
 VIDEOS: dict[str, Path] = {
-    "demo": Path("../resources/oop.mp4")
+    "demo": Path("resources/oop.mp4")
 }
 
 class VideoMetaData(BaseModel):
     fps: float
     frame_count: int
     duration_seconds: float
+    _links: dict | None = None
+
+class OCRResult(BaseModel):
+    text: str
     _links: dict | None = None
 
 @app.get("/video")
@@ -67,22 +71,40 @@ def _meta(video: CodingVideo) -> VideoMetaData:
 def video(vid: str):
     video = _open_vid_or_404(vid)
     try:
-            meta = _meta(video)
-            meta._links = {
-                "self": f"/video/{vid}",
-                "frames": f"/video/{vid}/frame/{{seconds}}"
-            }
-            return meta
+        meta = _meta(video)
+        meta._links = {
+            "self": f"/video/{vid}",
+            "frames": f"/video/{vid}/frame/{{seconds}}"
+        }
+        return meta
     finally:
         video.capture.release()
 
 
 @app.get("/video/{vid}/frame/{t}", response_class=Response)
 def video_frame(vid: str, t: float):
+    video = None
     try:
         video = _open_vid_or_404(vid)
         return Response(content=video.get_image_as_bytes(t), media_type="image/png")
     finally:
-      video.capture.release()
+        if video is not None:
+            video.capture.release()
 
-# TODO: add enpoint to get ocr e.g. /video/{vid}/frame/{t}/ocr
+
+@app.get("/video/{vid}/frame/{t}/ocr", response_model=OCRResult)
+def video_frame_ocr(vid: str, t: float):
+    video = None
+    try:
+        video = _open_vid_or_404(vid)
+        return OCRResult(
+            text=video.get_text_from_frame(t),
+            _links={
+                "self": f"/video/{vid}/frame/{t}/ocr",
+                "frame": f"/video/{vid}/frame/{t}"
+            }
+        )
+    finally:
+        if video is not None:
+            video.capture.release()
+

@@ -15,6 +15,7 @@ from PIL import Image
 from pathlib import Path
 import cv2
 import numpy as np
+import pytesseract
 
 
 VID_PATH = Path("resources/oop.mp4")
@@ -112,7 +113,6 @@ class CodingVideo:
         Reference:
         https://pypi.org/project/pytesseract/
         """
-        import pytesseract
 
         frame_number = self.get_frame_number_at_time(seconds)
         frame = self.get_frame_rgb_array(frame_number)
@@ -123,6 +123,15 @@ class CodingVideo:
                 f.write(text)
         except Exception as exc:
             raise ValueError(f"Failed to extract text or save to {output_path}") from exc
+
+    def get_text_from_frame(self, seconds: int) -> str:
+        """Extract text from the frame at a given time and return it as a string."""
+        frame_number = self.get_frame_number_at_time(seconds)
+        frame = self.get_frame_rgb_array(frame_number)
+        try:
+            return pytesseract.image_to_string(frame)
+        except Exception as exc:
+            raise ValueError("Failed to extract text from frame") from exc
         
 
 def test():
