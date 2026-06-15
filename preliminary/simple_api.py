@@ -7,6 +7,7 @@ Requirements
 
 from fastapi import FastAPI, HTTPException
 from fastapi import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
 from library_basics import CodingVideo
@@ -15,9 +16,6 @@ from library_basics import CodingVideo
 app = FastAPI()
 
 
-# We'll create a lightweight "database" for our videos
-# You can add uploads later (not required for assessment)
-# For now, we will just hardcode are samples
 VIDEOS: dict[str, Path] = {
     "demo": Path("resources/oop.mp4")
 }
@@ -40,7 +38,7 @@ def list_videos():
         "videos": [
             {
                 "id": vid,
-                "path": str(path), # Not standard for debug only
+                "path": str(path),
                 "_links": {
                     "self": f"/video/{vid}",
                     "frame_example": f"/video/{vid}/frame/1.0"
@@ -107,4 +105,7 @@ def video_frame_ocr(vid: str, t: float):
     finally:
         if video is not None:
             video.capture.release()
+
+
+app.mount("/", StaticFiles(directory="src", html=True), name="static")
 

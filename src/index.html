@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCR Video Player</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #111;
+      color: #eee;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    #app { max-width: 720px; width: 100%; }
+    h1 { margin: 0 0 1rem; font-size: 1.5rem; }
+    video {
+      display: block;
+      width: 100%;
+      background: #000;
+      border-radius: 4px;
+    }
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #333;
+      color: #eee;
+      border: 2px solid transparent;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: #444; }
+    button:focus-visible {
+      outline: 2px solid #4af;
+      outline-offset: 2px;
+      border-color: #4af;
+    }
+    #timeDisplay {
+      font-variant-numeric: tabular-nums;
+      margin-left: auto;
+    }
+    #ocrPanel {
+      background: #1a1a2e;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 1rem;
+      min-height: 5rem;
+    }
+    #ocrPanel h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: #8af;
+    }
+    #ocrOutput {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    #loading {
+      text-align: center;
+      padding: 2rem;
+      color: #888;
+    }
+    #shortcuts {
+      background: #222;
+      border-radius: 4px;
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+    }
+    #shortcuts h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: #8af;
+    }
+    #shortcuts table {
+      border-collapse: collapse;
+    }
+    #shortcuts td {
+      padding: 0.15rem 0.75rem 0.15rem 0;
+      font-size: 0.85rem;
+    }
+    #shortcuts kbd {
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 3px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.8rem;
+    }
+    #statusMsg {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Video Player</h1>
+
+    <video id="player" tabindex="0" aria-label="Video player"
+           width="640" height="360">
+    </video>
+
+    <div id="controls" role="toolbar" aria-label="Playback controls">
+      <button id="playBtn" aria-label="Play video">Play</button>
+      <button id="seekBack" aria-label="Seek backward 5 seconds">−5s</button>
+      <button id="seekFwd" aria-label="Seek forward 5 seconds">+5s</button>
+      <button id="ocrBtn" aria-label="Get text from current frame">Get Text</button>
+      <span id="timeDisplay" aria-live="polite" aria-label="Current time">0:00 / 0:00</span>
+    </div>
+
+    <div id="ocrPanel" aria-live="polite" role="region"
+         aria-label="Extracted text from current video frame">
+      <h2>OCR Text</h2>
+      <p id="ocrOutput">Press Up or Down arrow to extract text from the current frame.</p>
+    </div>
+
+    <div id="shortcuts" aria-label="Keyboard shortcuts">
+      <h2>Keyboard Shortcuts</h2>
+      <table>
+        <tr><td><kbd>Space</kbd></td><td>Play / Pause</td></tr>
+        <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Seek &minus;5s / +5s</td></tr>
+        <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Extract text from frame</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Move focus between controls</td></tr>
+      </table>
+    </div>
+
+    <p id="statusMsg" role="status" aria-live="assertive"></p>
+  </div>
+
+  <script>
+    (function() {
+      const video = document.getElementById('player');
+      const playBtn = document.getElementById('playBtn');
+      const seekBack = document.getElementById('seekBack');
+      const seekFwd = document.getElementById('seekFwd');
+      const ocrBtn = document.getElementById('ocrBtn');
+      const timeDisplay = document.getElementById('timeDisplay');
+      const ocrOutput = document.getElementById('ocrOutput');
+      const statusMsg = document.getElementById('statusMsg');
+
+      let ocrInFlight = false;
+
+      // ── Load video source ──────────────────────────────────
+      video.src = '/video/demo/file';
+
+      // ── Player controls ────────────────────────────────────
+      function togglePlay() {
+        if (video.paused || video.ended) {
+          video.play();
+        } else {
+          video.pause();
+        }
+      }
+
+      function seek(delta) {
+        const t = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
+        video.currentTime = t;
+      }
+
+      // ── OCR extraction ─────────────────────────────────────
+      async function extractText(seconds) {
+        if (ocrInFlight) return;
+        if (!video.duration) {
+          ocrOutput.textContent = 'Video not loaded yet.';
+          return;
+        }
+        ocrInFlight = true;
+        ocrOutput.textContent = 'Extracting text…';
+        try {
+          const t = Math.max(0, Math.min(video.duration, seconds));
+          const res = await fetch('/video/demo/frame/' + t + '/ocr');
+          if (!res.ok) throw new Error('OCR request failed');
+          const data = await res.json();
+          const text = (data.text || '').trim();
+          ocrOutput.textContent = text || '(no text found in this frame)';
+        } catch (err) {
+          ocrOutput.textContent = 'Error extracting text: ' + err.message;
+        } finally {
+          ocrInFlight = false;
+        }
+      }
+
+      // ── Time formatting ────────────────────────────────────
+      function fmtTime(s) {
+        if (!isFinite(s) || s < 0) return '0:00';
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+
+      function updateTimeDisplay() {
+        timeDisplay.textContent = fmtTime(video.currentTime) + ' / ' + fmtTime(video.duration);
+      }
+
+      // ── Announce to screen reader ──────────────────────────
+      function announce(msg) {
+        statusMsg.textContent = '';
+        requestAnimationFrame(() => { statusMsg.textContent = msg; });
+      }
+
+      // ── Event listeners ────────────────────────────────────
+      video.addEventListener('timeupdate', updateTimeDisplay);
+
+      video.addEventListener('loadedmetadata', () => {
+        updateTimeDisplay();
+        announce('Video loaded');
+      });
+
+      video.addEventListener('play', () => {
+        playBtn.textContent = 'Pause';
+        playBtn.setAttribute('aria-label', 'Pause video');
+        announce('Playing');
+      });
+
+      video.addEventListener('pause', () => {
+        playBtn.textContent = 'Play';
+        playBtn.setAttribute('aria-label', 'Play video');
+        announce('Paused');
+      });
+
+      video.addEventListener('ended', () => {
+        playBtn.textContent = 'Play';
+        playBtn.setAttribute('aria-label', 'Play video');
+        announce('Video ended');
+      });
+
+      playBtn.addEventListener('click', togglePlay);
+      seekBack.addEventListener('click', () => seek(-5));
+      seekFwd.addEventListener('click', () => seek(5));
+      ocrBtn.addEventListener('click', () => extractText(video.currentTime));
+
+      video.addEventListener('click', togglePlay);
+
+      // ── Keyboard navigation ────────────────────────────────
+      document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+        switch (e.key) {
+          case ' ':
+            e.preventDefault();
+            togglePlay();
+            break;
+          case 'ArrowLeft':
+            e.preventDefault();
+            seek(-5);
+            announce('Seeked back 5 seconds');
+            break;
+          case 'ArrowRight':
+            e.preventDefault();
+            seek(5);
+            announce('Seeked forward 5 seconds');
+            break;
+          case 'ArrowUp':
+            e.preventDefault();
+            extractText(video.currentTime);
+            announce('Text extracted from current frame');
+            break;
+          case 'ArrowDown':
+            e.preventDefault();
+            extractText(video.currentTime);
+            announce('Text extracted from current frame');
+            break;
+        }
+      });
+
+      // ── Init time display ──────────────────────────────────
+      updateTimeDisplay();
+    })();
+  </script>
+</body>
+</html>
