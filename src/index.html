@@ -175,15 +175,25 @@
 
       // ── OCR extraction ─────────────────────────────────────
       async function extractText(seconds) {
-        if (ocrInFlight) return;
-        if (!video.duration) {
-          ocrOutput.textContent = 'Video not loaded yet.';
+        // Validation: prevent duplicate requests
+        if (ocrInFlight) {
+          ocrOutput.textContent = 'OCR already in progress, please wait.';
           return;
         }
+        // Validation: check video is loaded
+        if (!video.duration || video.duration <= 0) {
+          ocrOutput.textContent = 'Cannot extract text: no video loaded.';
+          return;
+        }
+        // Validation: clamp time to video bounds
+        const t = Math.max(0, Math.min(video.duration, seconds));
+        if (t !== seconds) {
+          announce('Time adjusted to fit within video duration.');
+        }
+
         ocrInFlight = true;
         ocrOutput.textContent = 'Extracting text…';
         try {
-          const t = Math.max(0, Math.min(video.duration, seconds));
           const res = await fetch('/video/demo/frame/' + t + '/ocr');
           if (!res.ok) throw new Error('OCR request failed');
           const data = await res.json();
